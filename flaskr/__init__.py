@@ -105,7 +105,7 @@ def create_app(test_config=None):
         bcc = []
         subject = 'Daily Status: ' + datetime.today().strftime('%b %d, %Y')
 
-        send_email(username, app_password, to, cc, bcc, subject)
+        # send_email(username, app_password, to, cc, bcc, subject)
         print("Scheduler is alive!")
 
     scheduler = BackgroundScheduler(daemon=True)
