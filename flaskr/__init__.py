@@ -5,6 +5,8 @@ from datetime import datetime
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from apscheduler.schedulers.background import BackgroundScheduler
+from flaskr.db import get_db
+import openpyxl
 
 from flask import Flask
 
@@ -109,12 +111,30 @@ def create_app(test_config=None):
         print("Scheduler is alive!")
 
     scheduler = BackgroundScheduler(daemon=True)
-    scheduler.add_job(send_daily_status, 'interval', minutes=1)
+    scheduler.add_job(send_daily_status, 'interval', minutes=5)
     scheduler.start()
+
+    def get_change_list():
+        database = get_db()
+        tasks = database.execute(
+            'SELECT * FROM task'
+        ).fetchall()
+
+        book = openpyxl.load_workbook(r'D:\My Workshop\tasks.xlsx')
+
+        sheet = book.active
+
+        rows = sheet.rows
+
+        for row in rows:
+            for cell in row:
+                print(cell.value)
+
+        return ""
 
     @app.route('/')
     def index():
-        return 'Hello World!'
+        return get_change_list()
 
     def send_email(username, password, to, cc, bcc, subject):
         msg = MIMEMultipart('alternative')
@@ -123,6 +143,8 @@ def create_app(test_config=None):
         msg['To'] = ', '.join(to)
         msg['Cc'] = ', '.join(cc)
         msg['Bcc'] = ', '.join(bcc)
+
+        change_list = get_change_list()
 
         text = get_mail_text()
         html = get_mail_html()
@@ -146,3 +168,6 @@ def create_app(test_config=None):
             print(e)
 
     return app
+
+    if __name__ == '__main__':
+        app.run()
