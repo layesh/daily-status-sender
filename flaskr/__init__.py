@@ -120,15 +120,29 @@ def create_app(test_config=None):
             'SELECT * FROM task'
         ).fetchall()
 
+        print(tasks)
+
         book = openpyxl.load_workbook(r'D:\My Workshop\tasks.xlsx')
 
         sheet = book.active
 
-        rows = sheet.rows
+        values = sheet.values
 
-        for row in rows:
-            for cell in row:
-                print(cell.value)
+        rowIndex = 0
+        for value in values:
+            if value[0] == 'Row Id':
+                continue
+            match = next((x for x in tasks if value[0] == x['row_id']), None)
+
+            if match is None:
+                database.execute(
+                    "INSERT INTO task (row_id, project_name, version, opt_id, task_status, task_name) VALUES (?, ?, ?, ?, ?, ?)",
+                    (value[0], value[1], value[2], value[3], value[4], value[5])
+                )
+                database.commit()
+                print(match)
+            else:
+                print('a')
 
         return ""
 

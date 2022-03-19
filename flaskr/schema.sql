@@ -4,7 +4,9 @@ DROP TABLE IF EXISTS daily_status;
 
 CREATE TABLE task (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
+  row_id INTEGER,
   project_name TEXT,
+  version TEXT,
   opt_id INTEGER,
   task_status TEXT,
   task_name TEXT NOT NULL,
