@@ -128,7 +128,6 @@ def create_app(test_config=None):
 
         values = sheet.values
 
-        rowIndex = 0
         for value in values:
             if value[0] == 'Row Id':
                 continue
@@ -140,9 +139,20 @@ def create_app(test_config=None):
                     (value[0], value[1], value[2], value[3], value[4], value[5])
                 )
                 database.commit()
-                print(match)
             else:
-                print('a')
+                if value[4] != match['task_status']:
+                    database.execute(
+                        "INSERT INTO task_log (task_id, previous_status, current_status) VALUES (?, ?, ?)",
+                        (match['id'], match['task_status'], value[4])
+                    )
+                    database.execute(
+                        'UPDATE task SET project_name = ?, version = ?, opt_id = ?, task_status = ?, task_name = ?'
+                        ' WHERE row_id = ?',
+                        (value[1], value[2], value[3], value[4], value[5], match['row_id'])
+                    )
+                    database.commit()
+
+
 
         return ""
 
