@@ -7,6 +7,7 @@ from email.mime.text import MIMEText
 from apscheduler.schedulers.background import BackgroundScheduler
 from flaskr.db import get_db
 import openpyxl
+import time
 
 from flask import Flask
 
@@ -111,9 +112,9 @@ def create_app(test_config=None):
             send_email(username, app_password, to, cc, bcc, subject)
         print("Scheduler is alive!")
 
-    scheduler = BackgroundScheduler(daemon=True)
-    scheduler.add_job(send_daily_status, 'interval', seconds=3)
-    scheduler.start()
+    # scheduler = BackgroundScheduler(daemon=True)
+    # scheduler.add_job(send_daily_status, 'interval', seconds=10)
+    # scheduler.start()
 
     def get_database_conn():
         return get_db()
@@ -128,30 +129,45 @@ def create_app(test_config=None):
             'SELECT max(created) FROM daily_status'
         ).fetchone()
 
+    def generate_change_list(database, last_sent_daily_status_date):
+        if last_sent_daily_status_date:
+            return database.execute(
+                'SELECT * FROM task_log'
+            ).fetchall()
+        else:
+            return database.execute(
+                'SELECT * FROM task_log where updated > ?', last_sent_daily_status_date
+            ).fetchall()
+
     def read_excel_file():
         book = openpyxl.load_workbook(r'D:\My Workshop\tasks.xlsx')
         sheet = book.active
         return sheet.values
 
     def add_new_task(database, excel_row):
-        database.execute(
+        cur = database.execute(
             "INSERT INTO task (row_id, project_name, version, opt_id, task_status, task_name) values (?, ?, ?, ?, ?, ?)",
             (excel_row[0], excel_row[1], excel_row[2], excel_row[3], excel_row[4], excel_row[5])
         )
         database.commit()
 
+        return cur.lastrowid
+
     def get_matched_task_from_db(all_tasks_from_db, excel_row):
         return next((x for x in all_tasks_from_db if excel_row[0] == x['row_id']), None)
 
-    def insert_task_log_and_update_task(database, matched_task_from_db, excel_row):
+    def insert_task_log(database, excel_row, task_id, previous_status):
         database.execute(
             "INSERT INTO task_log (task_id, previous_status, current_status) values (?, ?, ?)",
-            (matched_task_from_db['id'], matched_task_from_db['task_status'], excel_row[4])
+            (task_id, previous_status, excel_row[4])
         )
+        database.commit()
+
+    def update_task(database, excel_row, row_id):
         database.execute(
             'UPDATE task SET project_name = ?, version = ?, opt_id = ?, task_status = ?, task_name = ?'
             ' WHERE row_id = ?',
-            (excel_row[1], excel_row[2], excel_row[3], excel_row[4], excel_row[5], matched_task_from_db['row_id'])
+            (excel_row[1], excel_row[2], excel_row[3], excel_row[4], excel_row[5], row_id)
         )
         database.commit()
 
@@ -166,20 +182,26 @@ def create_app(test_config=None):
 
             if matched_task_from_db is None:
                 # task is not present in the database
-                add_new_task(database, excel_row)
+                task_id = add_new_task(database, excel_row)
+                insert_task_log(database, excel_row, task_id, '')
             else:
                 # task is present in the database
                 if excel_row[4] != matched_task_from_db['task_status']:
                     # status changed in current excel file
-                    insert_task_log_and_update_task(database, matched_task_from_db, excel_row)
+                    insert_task_log(database, excel_row, matched_task_from_db['id'], matched_task_from_db['task_status'])
+                    update_task(database, excel_row, matched_task_from_db['row_id'])
 
     def get_change_list():
         database = get_database_conn()
         all_tasks_from_db = get_all_tasks(database)
-        print(all_tasks_from_db)
         excel_rows = read_excel_file()
         scan_excel_and_generate_task_log(database, all_tasks_from_db, excel_rows)
         last_sent_daily_status_date = get_last_sent_daily_status_date(database)
+        change_list = generate_change_list(database, last_sent_daily_status_date)
+        print(change_list)
+
+        for change in change_list:
+            print(change['current_status'])
 
         return ""
 
